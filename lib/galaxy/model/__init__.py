@@ -109,6 +109,7 @@ from sqlalchemy.ext.associationproxy import (
     association_proxy,
     AssociationProxy,
 )
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.orm import (
     aliased,
@@ -805,6 +806,7 @@ class User(Base, Dictifiable, RepresentById):
         back_populates="user", order_by=lambda: desc(UserAddress.update_time), cascade_backrefs=False
     )
     custos_auth: Mapped[List["CustosAuthnzToken"]] = relationship(back_populates="user")
+    chat_exchanges: Mapped[List["ChatExchange"]] = relationship(back_populates="user")
     default_permissions: Mapped[List["DefaultUserPermissions"]] = relationship(back_populates="user")
     groups: Mapped[List["UserGroupAssociation"]] = relationship(back_populates="user")
     histories: Mapped[List["History"]] = relationship(
@@ -1232,10 +1234,7 @@ ON CONFLICT
 
     def attempt_create_private_role(self):
         session = object_session(self)
-        role_name = self.email
-        role_desc = f"Private Role for {self.email}"
-        role_type = Role.types.PRIVATE
-        role = Role(name=role_name, description=role_desc, type=role_type)
+        role = Role(type=Role.types.PRIVATE)
         assoc = UserRoleAssociation(self, role)
         session.add(assoc)
         with transaction(session):
@@ -2972,6 +2971,43 @@ class GenomeIndexToolData(Base, RepresentById):  # TODO: params arg is lost
     user: Mapped[Optional["User"]] = relationship()
 
 
+class ChatExchange(Base, RepresentById):
+
+    __tablename__ = "chat_exchange"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("galaxy_user.id"), index=True, nullable=False)
+    job_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job.id"), index=True, nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="chat_exchanges")
+    messages: Mapped[List["ChatExchangeMessage"]] = relationship(back_populates="chat_exchange")
+
+    def __init__(self, user, job_id=None, message=None, **kwargs):
+        self.user = user
+        self.job_id = job_id
+        self.messages = []
+        if message:
+            self.add_message(message)
+
+    def add_message(self, message):
+        self.messages.append(ChatExchangeMessage(message=message))
+
+
+class ChatExchangeMessage(Base, RepresentById):
+    __tablename__ = "chat_exchange_message"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chat_exchange_id: Mapped[int] = mapped_column(ForeignKey("chat_exchange.id"), index=True)
+    create_time: Mapped[datetime] = mapped_column(default=now)
+    message: Mapped[str] = mapped_column(Text)
+    feedback: Mapped[Optional[int]] = mapped_column(Integer)
+    chat_exchange: Mapped["ChatExchange"] = relationship("ChatExchange", back_populates="messages")
+
+    def __init__(self, message, feedback=None):
+        self.message = message
+        self.feedback = feedback
+
+
 class Group(Base, Dictifiable, RepresentById):
     __tablename__ = "galaxy_group"
 
@@ -3760,7 +3796,7 @@ class Role(Base, Dictifiable, RepresentById):
     id: Mapped[int] = mapped_column(primary_key=True)
     create_time: Mapped[datetime] = mapped_column(default=now, nullable=True)
     update_time: Mapped[datetime] = mapped_column(default=now, onupdate=now, nullable=True)
-    name: Mapped[Optional[str]] = mapped_column(String(255), index=True, unique=True)
+    _name: Mapped[str] = mapped_column("name", String(255), index=True)
     description: Mapped[Optional[str]] = mapped_column(TEXT)
     type: Mapped[Optional[str]] = mapped_column(String(40), index=True)
     deleted: Mapped[Optional[bool]] = mapped_column(index=True, default=False)
@@ -3779,8 +3815,25 @@ class Role(Base, Dictifiable, RepresentById):
         ADMIN = "admin"
         SHARING = "sharing"
 
+    @staticmethod
+    def default_name(role_type):
+        return f"{role_type.value} role"
+
+    @hybrid_property
+    def name(self):
+        if self.type == Role.types.PRIVATE:
+            user_assocs = self.users
+            assert len(user_assocs) == 1, f"Did not find exactly one user for private role {self}"
+            return user_assocs[0].user.email
+        else:
+            return self._name
+
+    @name.setter  # type:ignore[no-redef]  # property setter
+    def name(self, name):
+        self._name = name
+
     def __init__(self, name=None, description=None, type=types.SYSTEM, deleted=False):
-        self.name = name
+        self.name = name or Role.default_name(type)
         self.description = description
         self.type = type
         self.deleted = deleted

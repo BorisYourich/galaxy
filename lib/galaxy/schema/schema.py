@@ -3124,7 +3124,7 @@ class LibraryAvailablePermissions(Model):
     roles: List[BasicRoleModel] = Field(
         ...,
         title="Roles",
-        description="A list available roles that can be assigned to a particular permission.",
+        description="A list containing available roles that can be assigned to a particular permission.",
     )
     page: int = Field(
         ...,
@@ -3705,6 +3705,19 @@ class MaterializeDatasetInstanceAPIRequest(Model):
 
 class MaterializeDatasetInstanceRequest(MaterializeDatasetInstanceAPIRequest):
     history_id: DecodedDatabaseIdField
+
+
+class ChatPayload(Model):
+    query: str = Field(
+        ...,
+        title="Query",
+        description="The query to be sent to the chatbot.",
+    )
+    context: Optional[str] = Field(
+        default="",
+        title="Context",
+        description="The context for the chatbot.",
+    )
 
 
 class CreatePagePayload(PageSummaryBase):
