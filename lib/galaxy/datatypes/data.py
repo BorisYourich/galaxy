@@ -50,6 +50,7 @@ from galaxy.util import (
     FILENAME_VALID_CHARS,
     inflector,
     iter_start_of_line,
+    to_content_disposition,
     unicodify,
     UNKNOWN,
 )
@@ -437,7 +438,7 @@ class Data(metaclass=DataMeta):
             element_identifier=kwd.get("element_identifier"),
             filename_pattern=kwd.get("filename_pattern"),
         )
-        headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        headers["Content-Disposition"] = to_content_disposition(filename)
         return open(dataset.get_file_name(), mode="rb"), headers
 
     def to_archive(self, dataset: DatasetProtocol, name: str = "") -> Iterable:
@@ -483,7 +484,7 @@ class Data(metaclass=DataMeta):
             headers["content-type"] = (
                 "application/octet-stream"  # force octet-stream so Safari doesn't append mime extensions to filename
             )
-            headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+            headers["Content-Disposition"] = to_content_disposition(filename)
             return open(data.get_file_name(), "rb"), headers
 
     def _serve_binary_file_contents_as_text(self, trans, data, headers, file_size, max_peek_size):
@@ -555,8 +556,7 @@ class Data(metaclass=DataMeta):
                         dir_items = sorted(os.listdir(file_path))
                         base_path, item_name = os.path.split(file_path)
                         tmp_fh.write(
-                            "<html><head><h3>Directory %s contents: %d items</h3></head>\n"
-                            % (escape(item_name), len(dir_items))
+                            f"<html><head><h3>Directory {escape(item_name)} contents: {len(dir_items)} items</h3></head>\n"
                         )
                         tmp_fh.write('<body><p/><table cellpadding="2">\n')
                         for index, fname in enumerate(dir_items):
@@ -660,16 +660,13 @@ class Data(metaclass=DataMeta):
         element_identifier: Optional[str] = None,
         filename_pattern: Optional[str] = None,
     ) -> str:
-        def escape(raw_identifier):
-            return "".join(c in FILENAME_VALID_CHARS and c or "_" for c in raw_identifier)[0:150]
-
         if not to_ext or to_ext == "data":
             # If a client requests to_ext with the extension 'data', they are
             # deferring to the server, set it based on datatype.
             to_ext = dataset.extension
 
         template_values = {
-            "name": escape(dataset.name),
+            "name": dataset.name,
             "ext": to_ext,
             "hid": dataset.hid,
         }
@@ -682,8 +679,9 @@ class Data(metaclass=DataMeta):
 
         if hdca is not None:
             # Use collection context to build up filename.
-            template_values["element_identifier"] = element_identifier
-            template_values["hdca_name"] = escape(hdca.name)
+            if element_identifier is not None:
+                template_values["element_identifier"] = element_identifier
+            template_values["hdca_name"] = hdca.name
             template_values["hdca_hid"] = hdca.hid
 
         return string.Template(filename_pattern).substitute(**template_values)
@@ -851,7 +849,11 @@ class Data(metaclass=DataMeta):
         job, converted_datasets, *_ = converter.execute(
             trans, incoming=params, set_output_hid=visible, history=history, flush_job=False
         )
+        # We should only have a single converted output, but let's be defensive here
+        n_converted_datasets = len(converted_datasets)
         for converted_dataset in converted_datasets.values():
+            if converted_dataset.extension == "auto" and n_converted_datasets == 1:
+                converted_dataset.extension = target_type
             original_dataset.attach_implicitly_converted_dataset(trans.sa_session, converted_dataset, target_type)
         trans.app.job_manager.enqueue(job, tool=converter)
         if len(params) > 0:

@@ -26,6 +26,7 @@ class RootController(controller.JSAppLauncher, UsesAnnotations):
     Controller class that maps to the url root of Galaxy (i.e. '/').
     """
 
+    app: StructuredApp
     history_manager: HistoryManager = depends(HistoryManager)
 
     def __init__(self, app: StructuredApp):
@@ -122,7 +123,7 @@ class RootController(controller.JSAppLauncher, UsesAnnotations):
             return data.as_display_type(display_app, **kwd)
         else:
             trans.response.status = "400"
-            return "No data with id=%d" % id
+            return f"No data with id={id}"
 
     @web.expose
     def welcome(self, trans: GalaxyWebTransaction, **kwargs):

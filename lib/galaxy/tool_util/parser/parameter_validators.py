@@ -313,7 +313,7 @@ class EmptyFieldParameterValidatorModel(StaticValidatorModel):
 
     @staticmethod
     def empty_validate(value: Any, validator: "ValidatorDescription"):
-        raise_error_if_valiation_fails((value != ""), validator)
+        raise_error_if_valiation_fails((value not in ("", None)), validator)
 
     def statically_validate(self, value: Any) -> None:
         EmptyFieldParameterValidatorModel.empty_validate(value, self)
@@ -668,9 +668,9 @@ def raise_error_if_valiation_fails(
         raise AssertionError("Validator logic problem - computed validation value must be boolean")
     if message is None:
         message = validator.message
-    if message is None:
+    if not message:
         message = DEFAULT_VALIDATOR_MESSAGE
-    assert message
+    assert message is not None
     if value_to_show and "%s" in message:
         message = message % value_to_show
     negate = validator.negate

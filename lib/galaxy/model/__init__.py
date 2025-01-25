@@ -146,10 +146,7 @@ from galaxy.files.templates import (
     FileSourceTemplate,
     template_to_configuration as file_source_template_to_configuration,
 )
-from galaxy.model.base import (
-    ensure_object_added_to_session,
-    transaction,
-)
+from galaxy.model.base import ensure_object_added_to_session
 from galaxy.model.custom_types import (
     DoubleEncodedJsonType,
     JSONType,
@@ -803,14 +800,14 @@ class User(Base, Dictifiable, RepresentById):
     activation_token: Mapped[Optional[str]] = mapped_column(TrimmedString(64), index=True)
 
     addresses: Mapped[List["UserAddress"]] = relationship(
-        back_populates="user", order_by=lambda: desc(UserAddress.update_time), cascade_backrefs=False
+        back_populates="user", order_by=lambda: desc(UserAddress.update_time)
     )
     custos_auth: Mapped[List["CustosAuthnzToken"]] = relationship(back_populates="user")
     chat_exchanges: Mapped[List["ChatExchange"]] = relationship(back_populates="user")
     default_permissions: Mapped[List["DefaultUserPermissions"]] = relationship(back_populates="user")
     groups: Mapped[List["UserGroupAssociation"]] = relationship(back_populates="user")
     histories: Mapped[List["History"]] = relationship(
-        back_populates="user", order_by=lambda: desc(History.update_time), cascade_backrefs=False  # type: ignore[has-type]
+        back_populates="user", order_by=lambda: desc(History.update_time)  # type: ignore[has-type]
     )
     active_histories: Mapped[List["History"]] = relationship(
         primaryjoin=(lambda: (History.user_id == User.id) & (not_(History.deleted)) & (not_(History.archived))),
@@ -818,7 +815,7 @@ class User(Base, Dictifiable, RepresentById):
         order_by=lambda: desc(History.update_time),  # type: ignore[has-type]
     )
     galaxy_sessions: Mapped[List["GalaxySession"]] = relationship(
-        back_populates="user", order_by=lambda: desc(GalaxySession.update_time), cascade_backrefs=False
+        back_populates="user", order_by=lambda: desc(GalaxySession.update_time)
     )
     object_stores: Mapped[List["UserObjectStore"]] = relationship(back_populates="user")
     file_sources: Mapped[List["UserFileSource"]] = relationship(back_populates="user")
@@ -853,11 +850,8 @@ class User(Base, Dictifiable, RepresentById):
     stored_workflows: Mapped[List["StoredWorkflow"]] = relationship(
         back_populates="user",
         primaryjoin=(lambda: User.id == StoredWorkflow.user_id),
-        cascade_backrefs=False,
     )
-    all_notifications: Mapped[List["UserNotificationAssociation"]] = relationship(
-        back_populates="user", cascade_backrefs=False
-    )
+    all_notifications: Mapped[List["UserNotificationAssociation"]] = relationship(back_populates="user")
 
     preferences: AssociationProxy[Any]
 
@@ -1167,11 +1161,10 @@ ON CONFLICT
             # the existing value - we're setting it in raw SQL for
             # performance reasons and bypassing object properties.
             sa_session.expire(self, ["disk_usage"])
-        with transaction(sa_session):
-            sa_session.commit()
+        sa_session.commit()
 
     @staticmethod
-    def user_template_environment(user):
+    def user_template_environment(user: Optional["User"]):
         """
 
         >>> env = User.user_template_environment(None)
@@ -1189,7 +1182,7 @@ ON CONFLICT
         'foo2'
         """
         if user:
-            user_id = "%d" % user.id
+            user_id = f"{user.id}"
             user_email = str(user.email)
             user_name = str(user.username)
         else:
@@ -1197,7 +1190,7 @@ ON CONFLICT
             user_id = "Anonymous"
             user_email = "Anonymous"
             user_name = "Anonymous"
-        environment = {}
+        environment: Dict[str, Any] = {}
         environment["__user__"] = user
         environment["__user_id__"] = environment["userId"] = user_id
         environment["__user_email__"] = environment["userEmail"] = user_email
@@ -1205,7 +1198,7 @@ ON CONFLICT
         return environment
 
     @staticmethod
-    def expand_user_properties(user, in_string):
+    def expand_user_properties(user, in_string: str):
         """ """
         environment = User.user_template_environment(user)
         return Template(in_string).safe_substitute(environment)
@@ -1237,8 +1230,7 @@ ON CONFLICT
         role = Role(type=Role.types.PRIVATE)
         assoc = UserRoleAssociation(self, role)
         session.add(assoc)
-        with transaction(session):
-            session.commit()
+        session.commit()
 
     def dictify_objectstore_usage(self) -> List[UserObjectstoreUsage]:
         session = object_session(self)
@@ -1507,9 +1499,7 @@ class Job(Base, JobLike, UsesCreateAndUpdateTime, Dictifiable, Serializable):
     output_dataset_collections: Mapped[List["JobToImplicitOutputDatasetCollectionAssociation"]] = relationship(
         back_populates="job"
     )
-    post_job_actions: Mapped[List["PostJobActionAssociation"]] = relationship(
-        back_populates="job", cascade_backrefs=False
-    )
+    post_job_actions: Mapped[List["PostJobActionAssociation"]] = relationship(back_populates="job")
     input_library_datasets: Mapped[List["JobToInputLibraryDatasetAssociation"]] = relationship(back_populates="job")
     output_library_datasets: Mapped[List["JobToOutputLibraryDatasetAssociation"]] = relationship(back_populates="job")
     external_output_metadata: Mapped[List["JobExternalOutputMetadata"]] = relationship(back_populates="job")
@@ -1522,17 +1512,17 @@ class Job(Base, JobLike, UsesCreateAndUpdateTime, Dictifiable, Serializable):
         back_populates="job", uselist=True
     )
     implicit_collection_jobs_association: Mapped[List["ImplicitCollectionJobsJobAssociation"]] = relationship(
-        back_populates="job", uselist=False, cascade_backrefs=False
+        back_populates="job", uselist=False
     )
     container: Mapped[Optional["JobContainerAssociation"]] = relationship(back_populates="job", uselist=False)
     data_manager_association: Mapped[Optional["DataManagerJobAssociation"]] = relationship(
-        back_populates="job", uselist=False, cascade_backrefs=False
+        back_populates="job", uselist=False
     )
     history_dataset_collection_associations: Mapped[List["HistoryDatasetCollectionAssociation"]] = relationship(
         back_populates="job"
     )
     workflow_invocation_step: Mapped[Optional["WorkflowInvocationStep"]] = relationship(
-        back_populates="job", uselist=False, cascade_backrefs=False
+        back_populates="job", uselist=False
     )
 
     any_output_dataset_collection_instances_deleted = None
@@ -1946,8 +1936,7 @@ class Job(Base, JobLike, UsesCreateAndUpdateTime, Dictifiable, Serializable):
                 job.resume(flush=False)
             if flush:
                 session = object_session(self)
-                with transaction(session):
-                    session.commit()
+                session.commit()
 
     def _serialize(self, id_encoder, serialization_options):
         job_attrs = dict_for(self)
@@ -2214,8 +2203,7 @@ class Job(Base, JobLike, UsesCreateAndUpdateTime, Dictifiable, Serializable):
             output_association.item.visible = False
         if flush:
             session = object_session(self)
-            with transaction(session):
-                session.commit()
+            session.commit()
 
 
 class Task(Base, JobLike, RepresentById):
@@ -2381,7 +2369,7 @@ class Task(Base, JobLike, RepresentById):
         # This method is available for runners that do not want/need to
         # differentiate between the kinds of Runnable things (Jobs and Tasks)
         # that they're using.
-        log.debug("Task %d: Set external id to %s" % (self.id, task_runner_external_id))
+        log.debug("Task %d: Set external id to %s", self.id, task_runner_external_id)
         self.task_runner_external_id = task_runner_external_id
 
     def set_task_runner_external_id(self, task_runner_external_id):
@@ -2607,9 +2595,7 @@ class ImplicitCollectionJobs(Base, Serializable):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     populated_state: Mapped[str] = mapped_column(TrimmedString(64), default="new")
-    jobs: Mapped[List["ImplicitCollectionJobsJobAssociation"]] = relationship(
-        back_populates="implicit_collection_jobs", cascade_backrefs=False
-    )
+    jobs: Mapped[List["ImplicitCollectionJobsJobAssociation"]] = relationship(back_populates="implicit_collection_jobs")
 
     class populated_states(str, Enum):
         NEW = "new"  # New implicit jobs object, unpopulated job associations
@@ -2655,7 +2641,7 @@ class PostJobAction(Base, RepresentById):
     workflow_step_id: Mapped[Optional[int]] = mapped_column(ForeignKey("workflow_step.id"), index=True)
     action_type: Mapped[str] = mapped_column(String(255))
     output_name: Mapped[Optional[str]] = mapped_column(String(255))
-    action_arguments: Mapped[Optional[bytes]] = mapped_column(MutableJSONType)
+    _action_arguments: Mapped[Optional[Dict[str, Any]]] = mapped_column("action_arguments", MutableJSONType)
     workflow_step: Mapped[Optional["WorkflowStep"]] = relationship(
         back_populates="post_job_actions",
         primaryjoin=(lambda: WorkflowStep.id == PostJobAction.workflow_step_id),
@@ -2667,6 +2653,18 @@ class PostJobAction(Base, RepresentById):
         self.action_arguments = action_arguments
         self.workflow_step = workflow_step
         ensure_object_added_to_session(self, object_in_session=workflow_step)
+
+    @property
+    def action_arguments(self):
+        if self.action_type in ("HideDatasetAction", "DeleteIntermediatesAction") and self._action_arguments is True:
+            # Fix up broken workflows resulting from imports with gxformat2 <= 0.20.0
+            return {}
+        else:
+            return self._action_arguments
+
+    @action_arguments.setter
+    def action_arguments(self, value: Dict[str, Any]):
+        self._action_arguments = value
 
 
 class PostJobActionAssociation(Base, RepresentById):
@@ -2810,8 +2808,7 @@ class JobExportHistoryArchive(Base, RepresentById):
         archive_dataset = Dataset()
         sa_session.add(archive_dataset)
 
-        with transaction(sa_session):
-            sa_session.commit()  # ensure job.id and archive_dataset.id are available
+        sa_session.commit()  # ensure job.id and archive_dataset.id are available
 
         object_store.create(archive_dataset)  # set the object store id, create dataset (if applicable)
         # Add association for keeping track of job, history, archive relationship.
@@ -3017,7 +3014,7 @@ class Group(Base, Dictifiable, RepresentById):
     name: Mapped[Optional[str]] = mapped_column(String(255), index=True, unique=True)
     deleted: Mapped[Optional[bool]] = mapped_column(index=True, default=False)
     quotas: Mapped[List["GroupQuotaAssociation"]] = relationship(back_populates="group")
-    roles: Mapped[List["GroupRoleAssociation"]] = relationship(back_populates="group", cascade_backrefs=False)
+    roles: Mapped[List["GroupRoleAssociation"]] = relationship(back_populates="group")
     users: Mapped[List["UserGroupAssociation"]] = relationship("UserGroupAssociation", back_populates="group")
 
     dict_collection_visible_keys = ["id", "name"]
@@ -3178,7 +3175,7 @@ class History(Base, HasTags, Dictifiable, UsesAnnotations, HasName, Serializable
     archive_export_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_export_association.id"), default=None)
 
     datasets: Mapped[List["HistoryDatasetAssociation"]] = relationship(
-        back_populates="history", cascade_backrefs=False, order_by=lambda: asc(HistoryDatasetAssociation.hid)  # type: ignore[has-type]
+        back_populates="history", order_by=lambda: asc(HistoryDatasetAssociation.hid)  # type: ignore[has-type]
     )
     exports: Mapped[List["JobExportHistoryArchive"]] = relationship(
         back_populates="history",
@@ -3243,11 +3240,9 @@ class History(Base, HasTags, Dictifiable, UsesAnnotations, HasName, Serializable
     default_permissions: Mapped[List["DefaultHistoryPermissions"]] = relationship(back_populates="history")
     users_shared_with: Mapped[List["HistoryUserShareAssociation"]] = relationship(back_populates="history")
     galaxy_sessions = relationship("GalaxySessionToHistoryAssociation", back_populates="history")
-    workflow_invocations: Mapped[List["WorkflowInvocation"]] = relationship(
-        back_populates="history", cascade_backrefs=False
-    )
+    workflow_invocations: Mapped[List["WorkflowInvocation"]] = relationship(back_populates="history")
     user: Mapped[Optional["User"]] = relationship(back_populates="histories")
-    jobs: Mapped[List["Job"]] = relationship(back_populates="history", cascade_backrefs=False)
+    jobs: Mapped[List["Job"]] = relationship(back_populates="history")
     tool_requests: Mapped[List["ToolRequest"]] = relationship(back_populates="history")
 
     update_time = column_property(
@@ -3379,8 +3374,7 @@ class History(Base, HasTags, Dictifiable, UsesAnnotations, HasName, Serializable
             object_session(self).add(dataset)
 
             session = object_session(self)
-            with transaction(session):
-                session.commit()
+            session.commit()
 
         elif not isinstance(dataset, (HistoryDatasetAssociation, HistoryDatasetCollectionAssociation)):
             raise TypeError(
@@ -3427,15 +3421,13 @@ class History(Base, HasTags, Dictifiable, UsesAnnotations, HasName, Serializable
                         self.user.adjust_total_disk_usage(disk_usage, quota_source_info.label)
             sa_session.add_all(datasets)
             if flush:
-                with transaction(sa_session):
-                    sa_session.commit()
+                sa_session.commit()
         else:
             for dataset in datasets:
                 self.add_dataset(dataset, parent_id=parent_id, genome_build=genome_build, set_hid=set_hid, quota=quota)
                 sa_session.add(dataset)
                 if flush:
-                    with transaction(sa_session):
-                        sa_session.commit()
+                    sa_session.commit()
 
     def __add_datasets_optimized(self, datasets, genome_build=None):
         """Optimized version of add_dataset above that minimizes database
@@ -3514,8 +3506,7 @@ class History(Base, HasTags, Dictifiable, UsesAnnotations, HasName, Serializable
                 new_hdca.copy_tags_from(target_user, hdca)
 
         new_history.hid_counter = self.hid_counter
-        with transaction(db_session):
-            db_session.commit()
+        db_session.commit()
 
         return new_history
 
@@ -3572,8 +3563,7 @@ class History(Base, HasTags, Dictifiable, UsesAnnotations, HasName, Serializable
         if job is not None:
             # We'll flush once if there was a paused job
             session = object_session(job)
-            with transaction(session):
-                session.commit()
+            session.commit()
 
     @property
     def paused_jobs(self):
@@ -3904,9 +3894,7 @@ class Quota(Base, Dictifiable, RepresentById):
     operation: Mapped[Optional[str]] = mapped_column(String(8))
     deleted: Mapped[Optional[bool]] = mapped_column(index=True, default=False)
     quota_source_label: Mapped[Optional[str]] = mapped_column(String(32), default=None)
-    default: Mapped[List["DefaultQuotaAssociation"]] = relationship(
-        "DefaultQuotaAssociation", back_populates="quota", cascade_backrefs=False
-    )
+    default: Mapped[List["DefaultQuotaAssociation"]] = relationship("DefaultQuotaAssociation", back_populates="quota")
     groups: Mapped[List["GroupQuotaAssociation"]] = relationship(back_populates="quota")
     users: Mapped[List["UserQuotaAssociation"]] = relationship(back_populates="quota")
 
@@ -4130,8 +4118,7 @@ class DefaultHistoryPermissions(Base, RepresentById):
 class StorableObject:
     def flush(self):
         if sa_session := object_session(self):
-            with transaction(sa_session):
-                sa_session.commit()
+            sa_session.commit()
 
 
 def setup_global_object_store_for_models(object_store: "BaseObjectStore") -> None:
@@ -4188,15 +4175,12 @@ class Dataset(Base, StorableObject, Serializable):
         ),
         viewonly=True,
     )
-    hashes: Mapped[List["DatasetHash"]] = relationship(back_populates="dataset", cascade_backrefs=False)
+    hashes: Mapped[List["DatasetHash"]] = relationship(back_populates="dataset")
     sources: Mapped[List["DatasetSource"]] = relationship(back_populates="dataset")
-    history_associations: Mapped[List["HistoryDatasetAssociation"]] = relationship(
-        back_populates="dataset", cascade_backrefs=False
-    )
+    history_associations: Mapped[List["HistoryDatasetAssociation"]] = relationship(back_populates="dataset")
     library_associations: Mapped[List["LibraryDatasetDatasetAssociation"]] = relationship(
         primaryjoin=(lambda: LibraryDatasetDatasetAssociation.table.c.dataset_id == Dataset.id),
         back_populates="dataset",
-        cascade_backrefs=False,
     )
 
     # failed_metadata is only valid as DatasetInstance state currently
@@ -4290,7 +4274,7 @@ class Dataset(Base, StorableObject, Serializable):
             if not file_name and self.state not in (self.states.NEW, self.states.QUEUED):
                 # Queued datasets can be assigned an object store and have a filename, but they aren't guaranteed to.
                 # Anything after queued should have a file name.
-                log.warning(f"Failed to determine file name for dataset {self.id}")
+                log.warning(f"Failed to determine file name for dataset {self.id} in state {self.state}")
             return file_name
         else:
             filename = self.external_filename
@@ -4422,8 +4406,7 @@ class Dataset(Base, StorableObject, Serializable):
         # for backwards compatibility, set if unset
         self.set_total_size()
         db_session = object_session(self)
-        with transaction(db_session):
-            db_session.commit()
+        db_session.commit()
         return self.total_size
 
     def set_total_size(self):
@@ -4675,7 +4658,6 @@ class DatasetInstance(RepresentById, UsesCreateAndUpdateTime, _HasTable):
         extension=None,
         dbkey=None,
         metadata=None,
-        history=None,
         dataset=None,
         deleted=False,
         designation=None,
@@ -4724,8 +4706,7 @@ class DatasetInstance(RepresentById, UsesCreateAndUpdateTime, _HasTable):
             dataset.job_id = creating_job_id
             if flush:
                 sa_session.add(dataset)
-                with transaction(sa_session):
-                    sa_session.commit()
+                sa_session.commit()
         elif dataset:
             add_object_to_object_session(self, dataset)
         self.dataset = dataset
@@ -4801,8 +4782,6 @@ class DatasetInstance(RepresentById, UsesCreateAndUpdateTime, _HasTable):
         self.set_total_size()
 
     def get_file_name(self, sync_cache: bool = True) -> str:
-        if self.dataset.purged:
-            return ""
         return self.dataset.get_file_name(sync_cache=sync_cache)
 
     def set_file_name(self, filename: str):
@@ -5108,9 +5087,7 @@ class DatasetInstance(RepresentById, UsesCreateAndUpdateTime, _HasTable):
         self, accepted_formats: List[str], **kwd
     ) -> Tuple[bool, Optional[str], Optional["DatasetInstance"]]:
         """Returns ( target_ext, existing converted dataset )"""
-        return self.datatype.find_conversion_destination(
-            self, accepted_formats, _get_datatypes_registry(), **kwd  # type:ignore[arg-type]
-        )
+        return self.datatype.find_conversion_destination(self, accepted_formats, _get_datatypes_registry(), **kwd)
 
     def add_validation_error(self, validation_error):
         self.validation_errors.append(validation_error)
@@ -5435,8 +5412,7 @@ class HistoryDatasetAssociation(DatasetInstance, HasTags, Dictifiable, UsesAnnot
         hda.metadata = self.metadata
         if flush:
             session = object_session(self)
-            with transaction(session):
-                session.commit()
+            session.commit()
         return hda
 
     def copy_tags_to(self, copy_tags=None):
@@ -5506,8 +5482,7 @@ class HistoryDatasetAssociation(DatasetInstance, HasTags, Dictifiable, UsesAnnot
             trans.sa_session.add(dp)
         # Must set metadata after ldda flushed, as MetadataFiles require ldda.id
         if self.set_metadata_requires_flush:
-            with transaction(session):
-                session.commit()
+            session.commit()
         ldda.metadata = self.metadata
         # TODO: copy #tags from history
         if ldda_message:
@@ -5516,9 +5491,7 @@ class HistoryDatasetAssociation(DatasetInstance, HasTags, Dictifiable, UsesAnnot
             target_folder.add_library_dataset(library_dataset, genome_build=ldda.dbkey)
             session.add(target_folder)
         session.add(library_dataset)
-
-        with transaction(session):
-            session.commit()
+        session.commit()
 
         return ldda
 
@@ -5772,7 +5745,7 @@ class Library(Base, Dictifiable, HasName, Serializable):
     description: Mapped[Optional[str]] = mapped_column(TEXT)
     synopsis: Mapped[Optional[str]] = mapped_column(TEXT)
     root_folder = relationship("LibraryFolder", back_populates="library_root")
-    actions: Mapped[List["LibraryPermissions"]] = relationship(back_populates="library", cascade_backrefs=False)
+    actions: Mapped[List["LibraryPermissions"]] = relationship(back_populates="library")
 
     permitted_actions = get_permitted_actions(filter="LIBRARY")
     dict_collection_visible_keys = ["id", "name"]
@@ -5887,7 +5860,7 @@ class LibraryFolder(Base, Dictifiable, HasName, Serializable):
     )
 
     library_root = relationship("Library", back_populates="root_folder")
-    actions: Mapped[List["LibraryFolderPermissions"]] = relationship(back_populates="folder", cascade_backrefs=False)
+    actions: Mapped[List["LibraryFolderPermissions"]] = relationship(back_populates="folder")
 
     dict_element_visible_keys = [
         "id",
@@ -6009,9 +5982,7 @@ class LibraryDataset(Base, Serializable):
         viewonly=True,
         uselist=True,
     )
-    actions: Mapped[List["LibraryDatasetPermissions"]] = relationship(
-        back_populates="library_dataset", cascade_backrefs=False
-    )
+    actions: Mapped[List["LibraryDatasetPermissions"]] = relationship(back_populates="library_dataset")
 
     # This class acts as a proxy to the currently selected LDDA
     upload_options = [
@@ -6149,8 +6120,7 @@ class LibraryDatasetDatasetAssociation(DatasetInstance, HasName, Serializable):
             if commit:
                 target_history.add_pending_items()
         if commit:
-            with transaction(sa_session):
-                sa_session.commit()
+            sa_session.commit()
         return hda
 
     def copy(self, parent_id=None, target_folder=None, flush=True):
@@ -6176,12 +6146,10 @@ class LibraryDatasetDatasetAssociation(DatasetInstance, HasName, Serializable):
         tag_manager.apply_item_tags(user=self.user, item=ldda, tags_str=src_ldda_tags)
 
         sa_session.add(ldda)
-        with transaction(sa_session):
-            sa_session.commit()
+        sa_session.commit()
         # Need to set after flushed, as MetadataFiles require dataset.id
         ldda.metadata = self.metadata
-        with transaction(sa_session):
-            sa_session.commit()
+        sa_session.commit()
         return ldda
 
     def clear_associated_files(self, metadata_safe=False, purge=False):
@@ -6838,9 +6806,10 @@ class DatasetCollection(Base, Dictifiable, UsesAnnotations, Serializable):
     def first_dataset_element(self) -> Optional["DatasetCollectionElement"]:
         for element in self.elements:
             if element.is_collection:
-                first_element = element.child_collection.first_dataset_element
-                if first_element:
-                    return first_element
+                if element.child_collection:
+                    first_element = element.child_collection.first_dataset_element
+                    if first_element:
+                        return first_element
             else:
                 return element
         return None
@@ -6890,8 +6859,7 @@ class DatasetCollection(Base, Dictifiable, UsesAnnotations, Serializable):
         object_session(self).add(new_collection)
         if flush:
             session = object_session(self)
-            with transaction(session):
-                session.commit()
+            session.commit()
         return new_collection
 
     def replace_failed_elements(self, replacements):
@@ -7012,7 +6980,7 @@ class HistoryDatasetCollectionAssociation(
     create_time: Mapped[datetime] = mapped_column(default=now, nullable=True)
     update_time: Mapped[datetime] = mapped_column(default=now, onupdate=now, index=True, nullable=True)
 
-    collection = relationship("DatasetCollection")
+    collection: Mapped["DatasetCollection"] = relationship("DatasetCollection")
     history: Mapped[Optional["History"]] = relationship(back_populates="dataset_collections")
 
     copied_from_history_dataset_collection_association = relationship(
@@ -7020,11 +6988,6 @@ class HistoryDatasetCollectionAssociation(
         primaryjoin=copied_from_history_dataset_collection_association_id == id,
         remote_side=[id],
         uselist=False,
-        back_populates="copied_to_history_dataset_collection_association",
-    )
-    copied_to_history_dataset_collection_association = relationship(
-        "HistoryDatasetCollectionAssociation",
-        back_populates="copied_from_history_dataset_collection_association",
     )
     implicit_input_collections: Mapped[List["ImplicitlyCreatedDatasetCollectionInput"]] = relationship(
         primaryjoin=(
@@ -7327,8 +7290,7 @@ class HistoryDatasetCollectionAssociation(
             element_destination.add_pending_items()
         if flush:
             session = object_session(self)
-            with transaction(session):
-                session.commit()
+            session.commit()
         return hdca
 
     @property
@@ -7435,18 +7397,18 @@ class DatasetCollectionElement(Base, Dictifiable, Serializable):
     element_index: Mapped[Optional[int]]
     element_identifier: Mapped[Optional[str]] = mapped_column(Unicode(255))
 
-    hda = relationship(
+    hda: Mapped[Optional["HistoryDatasetAssociation"]] = relationship(
         "HistoryDatasetAssociation",
         primaryjoin=(lambda: DatasetCollectionElement.hda_id == HistoryDatasetAssociation.id),
     )
-    ldda = relationship(
+    ldda: Mapped[Optional["LibraryDatasetDatasetAssociation"]] = relationship(
         "LibraryDatasetDatasetAssociation",
         primaryjoin=(lambda: DatasetCollectionElement.ldda_id == LibraryDatasetDatasetAssociation.id),
     )
-    child_collection = relationship(
+    child_collection: Mapped[Optional["DatasetCollection"]] = relationship(
         "DatasetCollection", primaryjoin=(lambda: DatasetCollectionElement.child_collection_id == DatasetCollection.id)
     )
-    collection = relationship(
+    collection: Mapped[DatasetCollection] = relationship(
         "DatasetCollection",
         primaryjoin=(lambda: DatasetCollection.id == DatasetCollectionElement.dataset_collection_id),
         back_populates="elements",
@@ -7649,7 +7611,7 @@ class GalaxySession(Base, RepresentById):
     last_action: Mapped[Optional[datetime]]
     current_history: Mapped[Optional["History"]] = relationship()
     histories: Mapped[List["GalaxySessionToHistoryAssociation"]] = relationship(
-        back_populates="galaxy_session", cascade_backrefs=False
+        back_populates="galaxy_session",
     )
     user: Mapped[Optional["User"]] = relationship(back_populates="galaxy_sessions")
 
@@ -7727,9 +7689,8 @@ class StoredWorkflow(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpd
         cascade="all, delete-orphan",
         primaryjoin=(lambda: StoredWorkflow.id == Workflow.stored_workflow_id),
         order_by=lambda: -Workflow.id,
-        cascade_backrefs=False,
     )
-    latest_workflow = relationship(
+    latest_workflow: Mapped["Workflow"] = relationship(
         "Workflow",
         post_update=True,
         primaryjoin=(lambda: StoredWorkflow.latest_workflow_id == Workflow.id),
@@ -7770,6 +7731,7 @@ class StoredWorkflow(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpd
 
     dict_collection_visible_keys = [
         "id",
+        "latest_workflow_id",
         "name",
         "create_time",
         "update_time",
@@ -7780,6 +7742,7 @@ class StoredWorkflow(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpd
     ]
     dict_element_visible_keys = [
         "id",
+        "latest_workflow_id",
         "name",
         "create_time",
         "update_time",
@@ -7845,7 +7808,7 @@ class StoredWorkflow(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpd
         )
         return bool(sa_session.scalar(stmt))
 
-    def copy_tags_from(self, target_user, source_workflow):
+    def copy_tags_from(self, target_user, source_workflow: "StoredWorkflow"):
         # Override to only copy owner tags.
         for src_swta in source_workflow.owner_tags:
             new_swta = src_swta.copy()
@@ -7918,7 +7881,6 @@ class Workflow(Base, Dictifiable, RepresentById):
         "WorkflowStep",
         primaryjoin=(lambda: Workflow.id == WorkflowStep.subworkflow_id),
         back_populates="subworkflow",
-        cascade_backrefs=False,
     )
     stored_workflow = relationship(
         "StoredWorkflow",
@@ -8018,7 +7980,7 @@ class Workflow(Base, Dictifiable, RepresentById):
         """
         return self.top_level_workflow.stored_workflow
 
-    def copy(self, user=None):
+    def copy(self, user: User):
         """Copy a workflow for a new StoredWorkflow object.
 
         Pass user if user-specific information needed.
@@ -8071,7 +8033,7 @@ class Workflow(Base, Dictifiable, RepresentById):
         extra = ""
         if self.stored_workflow:
             extra = f",name={self.stored_workflow.name}"
-        return "Workflow[id=%d%s]" % (self.id, extra)
+        return f"Workflow[id={self.id}{extra}]"
 
 
 InputConnDictType = Dict[str, Union[Dict[str, Any], List[Dict[str, Any]]]]
@@ -8099,7 +8061,7 @@ class WorkflowStep(Base, RepresentById, UsesCreateAndUpdateTime):
     tool_errors: Mapped[Optional[bytes]] = mapped_column(JSONType)
     position: Mapped[Optional[bytes]] = mapped_column(MutableJSONType)
     config: Mapped[Optional[bytes]] = mapped_column(JSONType)
-    order_index: Mapped[Optional[int]]
+    order_index: Mapped[int]
     when_expression: Mapped[Optional[bytes]] = mapped_column(JSONType)
     uuid: Mapped[Optional[Union[UUID, str]]] = mapped_column(UUIDType)
     label: Mapped[Optional[str]] = mapped_column(Unicode(255))
@@ -8125,18 +8087,15 @@ class WorkflowStep(Base, RepresentById, UsesCreateAndUpdateTime):
         order_by=lambda: WorkflowStepAnnotationAssociation.id,
         back_populates="workflow_step",
     )
-    post_job_actions = relationship("PostJobAction", back_populates="workflow_step", cascade_backrefs=False)
+    post_job_actions = relationship("PostJobAction", back_populates="workflow_step")
     inputs = relationship("WorkflowStepInput", back_populates="workflow_step")
-    workflow_outputs: Mapped[List["WorkflowOutput"]] = relationship(
-        back_populates="workflow_step", cascade_backrefs=False
-    )
+    workflow_outputs: Mapped[List["WorkflowOutput"]] = relationship(back_populates="workflow_step")
     output_connections: Mapped[List["WorkflowStepConnection"]] = relationship(
         primaryjoin=(lambda: WorkflowStepConnection.output_step_id == WorkflowStep.id)
     )
     workflow: Mapped["Workflow"] = relationship(
         primaryjoin=(lambda: Workflow.id == WorkflowStep.workflow_id),
         back_populates="steps",
-        cascade_backrefs=False,
     )
 
     STEP_TYPE_TO_INPUT_TYPE = {
@@ -8174,10 +8133,6 @@ class WorkflowStep(Base, RepresentById, UsesCreateAndUpdateTime):
         assert self.is_input_type, "step.input_type can only be called on input step types"
         return self.STEP_TYPE_TO_INPUT_TYPE[self.type]
 
-    @property
-    def input_default_value(self):
-        self.get_input_default_value(None)
-
     def get_input_default_value(self, default_default):
         # parameter_input and the data parameters handle this slightly differently
         # unfortunately.
@@ -8201,17 +8156,18 @@ class WorkflowStep(Base, RepresentById, UsesCreateAndUpdateTime):
         # Ensure input_connections has already been set.
 
         # Make connection information available on each step by input name.
-        inputs_by_name = {}
+        inputs_by_name: Dict[str, Any] = {}
         for step_input in self.inputs:
             input_name = step_input.name
             assert input_name not in inputs_by_name
             inputs_by_name[input_name] = step_input
         self._inputs_by_name = inputs_by_name
+        return inputs_by_name
 
     @property
     def inputs_by_name(self):
         if self._inputs_by_name is None:
-            self.setup_inputs_by_name()
+            return self.setup_inputs_by_name()
         return self._inputs_by_name
 
     def get_input(self, input_name):
@@ -8331,7 +8287,7 @@ class WorkflowStep(Base, RepresentById, UsesCreateAndUpdateTime):
                 break
         return target_output
 
-    def copy_to(self, copied_step, step_mapping, user=None):
+    def copy_to(self, copied_step: "WorkflowStep", step_mapping: Dict[int, "WorkflowStep"], user: User):
         copied_step.order_index = self.order_index
         copied_step.type = self.type
         copied_step.tool_id = self.tool_id
@@ -8363,10 +8319,10 @@ class WorkflowStep(Base, RepresentById, UsesCreateAndUpdateTime):
                 copied_step.subworkflow = subworkflow
                 copied_subworkflow = subworkflow
             else:
-                # Can this even happen, building a workflow with a subworkflow you don't own ?
-                copied_subworkflow = subworkflow.copy()
+                # Importing a shared workflow with a subworkflow step
+                copied_subworkflow = subworkflow.copy(user=user)
                 stored_workflow = StoredWorkflow(
-                    user, name=copied_subworkflow.name, workflow=copied_subworkflow, hidden=True
+                    user=user, name=copied_subworkflow.name, workflow=copied_subworkflow, hidden=True
                 )
                 copied_subworkflow.stored_workflow = stored_workflow
                 copied_step.subworkflow = copied_subworkflow
@@ -8444,7 +8400,6 @@ class WorkflowStepInput(Base, RepresentById):
     connections: Mapped[List["WorkflowStepConnection"]] = relationship(
         back_populates="input_step_input",
         primaryjoin=(lambda: WorkflowStepConnection.input_step_input_id == WorkflowStepInput.id),
-        cascade_backrefs=False,
     )
 
     def __init__(self, workflow_step):
@@ -8690,24 +8645,17 @@ class WorkflowInvocation(Base, UsesCreateAndUpdateTime, Dictifiable, Serializabl
     state: Mapped[Optional[str]] = mapped_column(TrimmedString(64), index=True)
     scheduler: Mapped[Optional[str]] = mapped_column(TrimmedString(255), index=True)
     handler: Mapped[Optional[str]] = mapped_column(TrimmedString(255), index=True)
-    uuid: Mapped[Optional[Union[UUID, str]]] = mapped_column(UUIDType())
+    uuid: Mapped[Optional[Union[UUID]]] = mapped_column(UUIDType())
     history_id: Mapped[Optional[int]] = mapped_column(ForeignKey("history.id"), index=True)
 
     history = relationship("History", back_populates="workflow_invocations")
-    input_parameters = relationship(
-        "WorkflowRequestInputParameter", back_populates="workflow_invocation", cascade_backrefs=False
-    )
-    step_states = relationship("WorkflowRequestStepState", back_populates="workflow_invocation", cascade_backrefs=False)
-    input_step_parameters = relationship(
-        "WorkflowRequestInputStepParameter", back_populates="workflow_invocation", cascade_backrefs=False
-    )
-    input_datasets = relationship(
-        "WorkflowRequestToInputDatasetAssociation", back_populates="workflow_invocation", cascade_backrefs=False
-    )
+    input_parameters = relationship("WorkflowRequestInputParameter", back_populates="workflow_invocation")
+    step_states = relationship("WorkflowRequestStepState", back_populates="workflow_invocation")
+    input_step_parameters = relationship("WorkflowRequestInputStepParameter", back_populates="workflow_invocation")
+    input_datasets = relationship("WorkflowRequestToInputDatasetAssociation", back_populates="workflow_invocation")
     input_dataset_collections = relationship(
         "WorkflowRequestToInputDatasetCollectionAssociation",
         back_populates="workflow_invocation",
-        cascade_backrefs=False,
     )
     subworkflow_invocations = relationship(
         "WorkflowInvocationToSubworkflowInvocationAssociation",
@@ -8721,20 +8669,14 @@ class WorkflowInvocation(Base, UsesCreateAndUpdateTime, Dictifiable, Serializabl
         "WorkflowInvocationStep",
         back_populates="workflow_invocation",
         order_by=lambda: WorkflowInvocationStep.order_index,
-        cascade_backrefs=False,
     )
     workflow = relationship("Workflow")
     output_dataset_collections = relationship(
         "WorkflowInvocationOutputDatasetCollectionAssociation",
         back_populates="workflow_invocation",
-        cascade_backrefs=False,
     )
-    output_datasets = relationship(
-        "WorkflowInvocationOutputDatasetAssociation", back_populates="workflow_invocation", cascade_backrefs=False
-    )
-    output_values = relationship(
-        "WorkflowInvocationOutputValue", back_populates="workflow_invocation", cascade_backrefs=False
-    )
+    output_datasets = relationship("WorkflowInvocationOutputDatasetAssociation", back_populates="workflow_invocation")
+    output_values = relationship("WorkflowInvocationOutputValue", back_populates="workflow_invocation")
     messages = relationship("WorkflowInvocationMessage", back_populates="workflow_invocation")
 
     dict_collection_visible_keys = [
@@ -9415,18 +9357,16 @@ class WorkflowInvocationStep(Base, Dictifiable, Serializable):
     )
     action: Mapped[Optional[bytes]] = mapped_column(MutableJSONType)
 
-    workflow_step = relationship("WorkflowStep")
+    workflow_step: Mapped[WorkflowStep] = relationship("WorkflowStep")
     job: Mapped[Optional["Job"]] = relationship(back_populates="workflow_invocation_step", uselist=False)
     implicit_collection_jobs = relationship("ImplicitCollectionJobs", uselist=False)
     output_dataset_collections = relationship(
         "WorkflowInvocationStepOutputDatasetCollectionAssociation",
         back_populates="workflow_invocation_step",
-        cascade_backrefs=False,
     )
     output_datasets = relationship(
         "WorkflowInvocationStepOutputDatasetAssociation",
         back_populates="workflow_invocation_step",
-        cascade_backrefs=False,
     )
     workflow_invocation: Mapped["WorkflowInvocation"] = relationship(back_populates="steps")
     output_value = relationship(
@@ -9965,7 +9905,7 @@ class MetadataFile(Base, StorableObject, Serializable):
                 if e.errno != errno.EEXIST:
                     raise
             # Return filename inside hashed directory
-            return os.path.abspath(os.path.join(path, "metadata_%d.dat" % self.id))
+            return os.path.abspath(os.path.join(path, f"metadata_{self.id}.dat"))
 
     def _serialize(self, id_encoder, serialization_options):
         as_dict = dict_for(self)
@@ -10137,8 +10077,7 @@ class PSAAssociation(Base, AssociationMixin, RepresentById):
 
     def save(self):
         self.sa_session.add(self)
-        with transaction(self.sa_session):
-            self.sa_session.commit()
+        self.sa_session.commit()
 
     @classmethod
     def store(cls, server_url, association):
@@ -10158,8 +10097,7 @@ class PSAAssociation(Base, AssociationMixin, RepresentById):
         assoc.lifetime = association.lifetime
         assoc.assoc_type = association.assoc_type
         cls.sa_session.add(assoc)
-        with transaction(cls.sa_session):
-            cls.sa_session.commit()
+        cls.sa_session.commit()
 
     @classmethod
     def get(cls, *args, **kwargs):
@@ -10201,8 +10139,7 @@ class PSACode(Base, CodeMixin, RepresentById):
 
     def save(self):
         self.sa_session.add(self)
-        with transaction(self.sa_session):
-            self.sa_session.commit()
+        self.sa_session.commit()
 
     @classmethod
     def get_code(cls, code):
@@ -10231,8 +10168,7 @@ class PSANonce(Base, NonceMixin, RepresentById):
 
     def save(self):
         self.sa_session.add(self)
-        with transaction(self.sa_session):
-            self.sa_session.commit()
+        self.sa_session.commit()
 
     @classmethod
     def use(cls, server_url, timestamp, salt):
@@ -10246,8 +10182,7 @@ class PSANonce(Base, NonceMixin, RepresentById):
         except IndexError:
             instance = cls(server_url=server_url, timestamp=timestamp, salt=salt)
             cls.sa_session.add(instance)
-            with transaction(cls.sa_session):
-                cls.sa_session.commit()
+            cls.sa_session.commit()
             return instance
 
 
@@ -10271,8 +10206,7 @@ class PSAPartial(Base, PartialMixin, RepresentById):
 
     def save(self):
         self.sa_session.add(self)
-        with transaction(self.sa_session):
-            self.sa_session.commit()
+        self.sa_session.commit()
 
     @classmethod
     def load(cls, token):
@@ -10290,8 +10224,7 @@ class PSAPartial(Base, PartialMixin, RepresentById):
         if partial := cls.load(token):
             session = cls.sa_session
             session.execute(delete(partial))
-            with transaction(session):
-                session.commit()
+            session.commit()
 
 
 class UserAuthnzToken(Base, UserMixin, RepresentById):
@@ -10328,13 +10261,11 @@ class UserAuthnzToken(Base, UserMixin, RepresentById):
     def set_extra_data(self, extra_data=None):
         if super().set_extra_data(extra_data):
             self.sa_session.add(self)
-            with transaction(self.sa_session):
-                self.sa_session.commit()
+            self.sa_session.commit()
 
     def save(self):
         self.sa_session.add(self)
-        with transaction(self.sa_session):
-            self.sa_session.commit()
+        self.sa_session.commit()
 
     @classmethod
     def changed(cls, user):
@@ -10343,8 +10274,7 @@ class UserAuthnzToken(Base, UserMixin, RepresentById):
         (Required by social_core.storage.UserMixin interface)
         """
         cls.sa_session.add(user)
-        with transaction(cls.sa_session):
-            cls.sa_session.commit()
+        cls.sa_session.commit()
 
     @classmethod
     def get_username(cls, user):
@@ -10396,8 +10326,7 @@ class UserAuthnzToken(Base, UserMixin, RepresentById):
             raise Exception(f"User with this email '{instance.email}' already exists.")
         instance.set_random_password()
         cls.sa_session.add(instance)
-        with transaction(cls.sa_session):
-            cls.sa_session.commit()
+        cls.sa_session.commit()
         return instance
 
     @classmethod
@@ -10449,8 +10378,7 @@ class UserAuthnzToken(Base, UserMixin, RepresentById):
         uid = str(uid)
         instance = cls(user=user, uid=uid, provider=provider)
         cls.sa_session.add(instance)
-        with transaction(cls.sa_session):
-            cls.sa_session.commit()
+        cls.sa_session.commit()
         return instance
 
 
@@ -10616,7 +10544,6 @@ class Visualization(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpda
         back_populates="visualization",
         cascade="all, delete-orphan",
         primaryjoin=(lambda: Visualization.id == VisualizationRevision.visualization_id),
-        cascade_backrefs=False,
     )
     latest_revision: Mapped[Optional["VisualizationRevision"]] = relationship(
         post_update=True,
@@ -10750,7 +10677,7 @@ class Tag(Base, RepresentById):
     parent: Mapped[Optional["Tag"]] = relationship(back_populates="children", remote_side=[id])
 
     def __str__(self):
-        return "Tag(id=%s, type=%i, parent_id=%s, name=%s)" % (self.id, self.type or -1, self.parent_id, self.name)
+        return f"Tag(id={self.id}, type={self.type or -1}, parent_id={self.parent_id}, name={self.name})"
 
 
 class ItemTagAssociation(Dictifiable):
@@ -11775,7 +11702,7 @@ mapper_registry.map_imperatively(
         _metadata=deferred(HistoryDatasetAssociation.table.c._metadata),
         dependent_jobs=relationship(JobToInputDatasetAssociation, back_populates="dataset"),
         creating_job_associations=relationship(JobToOutputDatasetAssociation, back_populates="dataset"),
-        history=relationship(History, back_populates="datasets", cascade_backrefs=False),
+        history=relationship(History, back_populates="datasets"),
         implicitly_converted_datasets=relationship(
             ImplicitlyConvertedDatasetAssociation,
             primaryjoin=(lambda: ImplicitlyConvertedDatasetAssociation.hda_parent_id == HistoryDatasetAssociation.id),

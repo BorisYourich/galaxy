@@ -65,7 +65,6 @@ from galaxy.model import (
     WorkflowStep,
     YIELD_PER_ROWS,
 )
-from galaxy.model.base import transaction
 from galaxy.model.index_filter_util import (
     raw_text_column_filter,
     text_column_filter,
@@ -348,8 +347,7 @@ class JobManager:
         if not job.finished:
             job.mark_deleted(self.app.config.track_jobs_in_database)
             session = self.app.model.session
-            with transaction(session):
-                session.commit()
+            session.commit()
             self.app.job_manager.stop(job, message=message)
             return True
         else:
@@ -788,7 +786,7 @@ def invocation_job_source_iter(sa_session, invocation_id):
 
 def get_job_metrics_for_invocation(sa_session: galaxy_scoped_session, invocation_id: int):
     single_job_stmnt = (
-        select(WorkflowStep.order_index, Job.tool_id, WorkflowStep.label, JobMetricNumeric)
+        select(WorkflowStep.order_index, Job.id, Job.tool_id, WorkflowStep.label, JobMetricNumeric)
         .join(Job, JobMetricNumeric.job_id == Job.id)
         .join(
             WorkflowInvocationStep,
@@ -799,7 +797,7 @@ def get_job_metrics_for_invocation(sa_session: galaxy_scoped_session, invocation
         .join(WorkflowStep, WorkflowStep.id == WorkflowInvocationStep.workflow_step_id)
     )
     collection_job_stmnt = (
-        select(WorkflowStep.order_index, Job.tool_id, WorkflowStep.label, JobMetricNumeric)
+        select(WorkflowStep.order_index, Job.id, Job.tool_id, WorkflowStep.label, JobMetricNumeric)
         .join(Job, JobMetricNumeric.job_id == Job.id)
         .join(ImplicitCollectionJobsJobAssociation, Job.id == ImplicitCollectionJobsJobAssociation.job_id)
         .join(

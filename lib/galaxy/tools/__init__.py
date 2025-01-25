@@ -50,7 +50,6 @@ from galaxy.model import (
     Job,
     StoredWorkflow,
 )
-from galaxy.model.base import transaction
 from galaxy.model.dataset_collections.matching import MatchingCollections
 from galaxy.tool_shed.util.repository_util import get_installed_repository
 from galaxy.tool_shed.util.shed_util_common import set_image_paths
@@ -82,6 +81,10 @@ from galaxy.tool_util.parser.interface import (
     InputSource,
     PageSource,
     ToolSource,
+)
+from galaxy.tool_util.parser.output_objects import (
+    ToolOutput,
+    ToolOutputCollection,
 )
 from galaxy.tool_util.parser.util import (
     parse_profile_version,
@@ -419,8 +422,7 @@ class PersistentToolTagManager(AbstractToolTagManager):
             f"removing all tool tag associations ({str(self.sa_session.scalar(select(func.count(self.app.model.ToolTagAssociation.id))))})"
         )
         self.sa_session.execute(delete(self.app.model.ToolTagAssociation))
-        with transaction(self.sa_session):
-            self.sa_session.commit()
+        self.sa_session.commit()
 
     def handle_tags(self, tool_id, tool_definition_source):
         elem = tool_definition_source
@@ -434,12 +436,10 @@ class PersistentToolTagManager(AbstractToolTagManager):
                 if not tag:
                     tag = self.app.model.Tag(name=tag_name)
                     self.sa_session.add(tag)
-                    with transaction(self.sa_session):
-                        self.sa_session.commit()
+                    self.sa_session.commit()
                     tta = self.app.model.ToolTagAssociation(tool_id=tool_id, tag_id=tag.id)
                     self.sa_session.add(tta)
-                    with transaction(self.sa_session):
-                        self.sa_session.commit()
+                    self.sa_session.commit()
                 else:
                     for tagged_tool in tag.tagged_tools:
                         if tagged_tool.tool_id == tool_id:
@@ -447,8 +447,7 @@ class PersistentToolTagManager(AbstractToolTagManager):
                     else:
                         tta = self.app.model.ToolTagAssociation(tool_id=tool_id, tag_id=tag.id)
                         self.sa_session.add(tta)
-                        with transaction(self.sa_session):
-                            self.sa_session.commit()
+                        self.sa_session.commit()
 
 
 class ToolBox(AbstractToolBox):
@@ -458,10 +457,10 @@ class ToolBox(AbstractToolBox):
     dependency management, etc.
     """
 
-    def __init__(self, config_filenames, tool_root_dir, app, save_integrated_tool_panel=True):
+    def __init__(self, config_filenames, tool_root_dir, app, save_integrated_tool_panel: bool = True):
         self._reload_count = 0
         self.tool_location_fetcher = ToolLocationFetcher()
-        self.cache_regions = {}
+        self.cache_regions: Dict[str, ToolDocumentCache] = {}
         # This is here to deal with the old default value, which doesn't make
         # sense in an "installed Galaxy" world.
         # FIXME: ./
@@ -517,7 +516,7 @@ class ToolBox(AbstractToolBox):
             tool.hidden = False
             section.elems.append_tool(tool)
 
-    def persist_cache(self, register_postfork=False):
+    def persist_cache(self, register_postfork: bool = False):
         """
         Persists any modified tool cache files to disk.
 
@@ -561,13 +560,13 @@ class ToolBox(AbstractToolBox):
         # Deprecated method, TODO - eliminate calls to this in test/.
         return self._tools_by_id
 
-    def get_cache_region(self, tool_cache_data_dir):
+    def get_cache_region(self, tool_cache_data_dir: Optional[str]):
         if self.app.config.enable_tool_document_cache and tool_cache_data_dir:
             if tool_cache_data_dir not in self.cache_regions:
                 self.cache_regions[tool_cache_data_dir] = ToolDocumentCache(cache_dir=tool_cache_data_dir)
             return self.cache_regions[tool_cache_data_dir]
 
-    def create_tool(self, config_file: str, tool_cache_data_dir=None, **kwds):
+    def create_tool(self, config_file: str, tool_cache_data_dir: Optional[str] = None, **kwds):
         cache = self.get_cache_region(tool_cache_data_dir)
         if config_file.endswith(".xml") and cache and not cache.disabled:
             tool_document = cache.get(config_file)
@@ -847,6 +846,8 @@ class Tool(UsesDictVisibleKeys):
         self.tool_errors = None
         # Parse XML element containing configuration
         self.tool_source = tool_source
+        self.outputs: Dict[str, ToolOutput] = {}
+        self.output_collections: Dict[str, ToolOutputCollection] = {}
         self._is_workflow_compatible = None
         self.__help = None
         self.__tests: Optional[str] = None
@@ -3138,8 +3139,7 @@ class SetMetadataTool(Tool):
             if not metadata_set_successfully:
                 dataset.state = model.DatasetInstance.states.FAILED_METADATA
                 self.sa_session.add(dataset)
-                with transaction(self.sa_session):
-                    self.sa_session.commit()
+                self.sa_session.commit()
                 return
             # If setting external metadata has failed, how can we inform the
             # user? For now, we'll leave the default metadata and set the state
@@ -3158,8 +3158,7 @@ class SetMetadataTool(Tool):
             except Exception:
                 log.exception("Exception occured while setting dataset peek")
             self.sa_session.add(dataset)
-            with transaction(self.sa_session):
-                self.sa_session.commit()
+            self.sa_session.commit()
 
     def job_failed(self, job_wrapper, message, exception=False):
         job = job_wrapper.sa_session.get(Job, job_wrapper.job_id)
@@ -3257,8 +3256,7 @@ class DataManagerTool(OutputParameterJSONTool):
             history = trans.app.model.History(name="Data Manager History (automatically created)", user=user)
             data_manager_association = trans.app.model.DataManagerHistoryAssociation(user=user, history=history)
             trans.sa_session.add_all((history, data_manager_association))
-            with transaction(trans.sa_session):
-                trans.sa_session.commit()
+            trans.sa_session.commit()
             return history
 
         user = trans.user
@@ -3875,14 +3873,13 @@ class HarmonizeTool(DatabaseOperationTool):
         final_sorted_identifiers = [
             element.element_identifier for element in elements1 if element.element_identifier in old_elements2_dict
         ]
-        # Raise Exception if it is empty
         if len(final_sorted_identifiers) == 0:
             # Create empty collections:
             output_collections.create_collection(
-                next(iter(self.outputs.values())), "output1", elements={}, propagate_hda_tags=False
+                self.outputs["output1"], "output1", elements={}, propagate_hda_tags=False
             )
             output_collections.create_collection(
-                next(iter(self.outputs.values())), "output2", elements={}, propagate_hda_tags=False
+                self.outputs["output2"], "output2", elements={}, propagate_hda_tags=False
             )
             return
 
@@ -3900,7 +3897,7 @@ class HarmonizeTool(DatabaseOperationTool):
             self._add_datasets_to_history(history, new_elements.values())
             # Create collections:
             output_collections.create_collection(
-                next(iter(self.outputs.values())), output_label, elements=new_elements, propagate_hda_tags=False
+                self.outputs[output_label], output_label, elements=new_elements, propagate_hda_tags=False
             )
 
         # Create outputs:

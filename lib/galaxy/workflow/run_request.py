@@ -23,13 +23,11 @@ from galaxy.model import (
     WorkflowRequestInputParameter,
     WorkflowRequestStepState,
 )
-from galaxy.model.base import (
-    ensure_object_added_to_session,
-    transaction,
-)
+from galaxy.model.base import ensure_object_added_to_session
 from galaxy.tool_util.parameters import DataRequestUri
 from galaxy.tools.parameters.basic import ParameterValueError
 from galaxy.tools.parameters.meta import expand_workflow_inputs
+from galaxy.tools.parameters.workflow_utils import NO_REPLACEMENT
 from galaxy.workflow.modules import WorkflowModuleInjector
 from galaxy.workflow.resources import get_resource_mapper_function
 
@@ -292,8 +290,7 @@ def _get_target_history(
             nh_name = f"{nh_name} on {', '.join(ids[0:-1])} and {ids[-1]}"
         new_history = History(user=trans.user, name=nh_name)
         trans.sa_session.add(new_history)
-        with transaction(trans.sa_session):
-            trans.sa_session.commit()
+        trans.sa_session.commit()
         target_history = new_history
     return target_history
 
@@ -599,7 +596,8 @@ def workflow_run_config_to_request(
             type=param_types.REPLACEMENT_PARAMETERS,
         )
     for step_id, content in run_config.inputs.items():
-        workflow_invocation.add_input(content, step_id)
+        if content is not NO_REPLACEMENT:
+            workflow_invocation.add_input(content, step_id)
     for step_id, param_dict in run_config.param_map.items():
         add_parameter(
             name=str(step_id),
