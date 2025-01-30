@@ -382,6 +382,7 @@ def create_tool_from_source(app, tool_source: ToolSource, config_file: Optional[
         module, cls = tool_module
         mod = __import__(module, globals(), locals(), [cls])
         ToolClass = getattr(mod, cls)
+        assert issubclass(ToolClass, Tool)
     elif tool_type := tool_source.parse_tool_type():
         ToolClass = tool_types.get(tool_type)
         if not ToolClass:
@@ -596,7 +597,7 @@ class ToolBox(AbstractToolBox):
             global_tool_errors.add_error(config_file, "Tool XML parsing", e)
             raise e
 
-    def _create_tool_from_source(self, tool_source, **kwds):
+    def _create_tool_from_source(self, tool_source: ToolSource, **kwds):
         return create_tool_from_source(self.app, tool_source, **kwds)
 
     def create_dynamic_tool(self, dynamic_tool, **kwds):
@@ -3967,6 +3968,10 @@ class RelabelFromFileTool(DatabaseOperationTool):
                 add_copied_value_to_new_elements(new_label, dce_object)
         else:
             # If new_labels_dataset_assoc is not a two-column tabular dataset we label with the current line of the dataset
+            if hdca.collection.element_count > len(new_labels):
+                raise exceptions.MessageException(
+                    "Relabel mapping file contains less lines than there are collection elements to relabel."
+                )
             for i, dce in enumerate(hdca.collection.elements):
                 dce_object = dce.element_object
                 add_copied_value_to_new_elements(new_labels[i], dce_object)

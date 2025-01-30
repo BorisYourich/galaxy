@@ -4259,6 +4259,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/{task_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get result message for task ID
+         * @description If the task is still running, pending, or is waiting for retry then the result is an empty string.
+         *     If the task failed, the result is an error message.
+         */
+        get: operations["get_result_api_tasks__task_id__result_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}/state": {
         parameters: {
             query?: never;
@@ -14720,6 +14741,11 @@ export interface components {
         /** PageDetails */
         PageDetails: {
             /**
+             * Author deleted
+             * @description Whether the author of this Page has been deleted.
+             */
+            author_deleted: boolean;
+            /**
              * Content
              * @description Raw text contents of the last page revision (type dependent on content_format).
              * @default
@@ -14817,6 +14843,11 @@ export interface components {
         };
         /** PageSummary */
         PageSummary: {
+            /**
+             * Author deleted
+             * @description Whether the author of this Page has been deleted.
+             */
+            author_deleted: boolean;
             /**
              * Create Time
              * Format: date-time
@@ -16367,6 +16398,11 @@ export interface components {
                 | (components["schemas"]["Person"] | components["schemas"]["galaxy__schema__schema__Organization"])[]
                 | null;
             /**
+             * Creator deleted
+             * @description Whether the creator of this Workflow has been deleted.
+             */
+            creator_deleted: boolean;
+            /**
              * Deleted
              * @description Whether this item is marked as deleted.
              */
@@ -16588,6 +16624,22 @@ export interface components {
             | "Page"
             | "StoredWorkflow"
             | "Visualization";
+        /**
+         * TaskResult
+         * @description Contains information about the result of an asynchronous task.
+         */
+        TaskResult: {
+            /**
+             * Result
+             * @description The result message of the task. Empty if the task is still running. If the task failed, this will contain the exception message.
+             */
+            result: string;
+            /**
+             * State
+             * @description The current state of the task.
+             */
+            state: components["schemas"]["TaskState"];
+        };
         /**
          * TaskState
          * @description Enum representing the possible states of a task.
@@ -32283,6 +32335,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    get_result_api_tasks__task_id__result_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResult"];
+                };
             };
             /** @description Request Error */
             "4XX": {
